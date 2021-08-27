@@ -91,7 +91,7 @@ All available commands:
 	stream create scoped-stream-names: Creates one or more Streams.
 	stream delete scoped-stream-names: Deletes one or more Streams.
 	stream list scope-name: Lists all Streams in a Scope.
-	stream read scoped-stream-name [group-similar] [timeout-in-seconds]: Reads all Events from a Stream and then tails the Stream.
+	stream read scoped-stream-name [group-similar] [max-list-items]: Reads all Events from a Stream and then tails the Stream until reach max-list-items.
 ```
 
 For more info on how the Pravega User CLI works, please visit [this page](https://github.com/pravega/pravega/wiki/Pravega-User-CLI).
