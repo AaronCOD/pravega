@@ -49,8 +49,17 @@ COPY entrypoint.sh /opt/bookkeeper/scripts/pravega_entrypoint.sh
 
 # For backwards compatibility with older operator versions
 COPY entrypoint.sh /opt/bookkeeper/entrypoint.sh
+COPY log4j.properties /opt/bookkeeper/conf/log4j.properties
+COPY bk-sp.sh /
+RUN chmod +x /bk-sp.sh
 
 RUN chmod +x -R /opt/bookkeeper/scripts/
+RUN chgrp -R 0 /opt/bookkeeper && \
+    chmod -R g=u /opt/bookkeeper
+ENV BOOKIE_LOG_CONF=/opt/bookkeeper/conf/log4j.properties
+ENV BOOKIE_LOG_DIR=/opt/bookkeeper/logs
+ENV BOOKIE_ROOT_LOGGER=INFO,ROLLINGFILE
+RUN sed -i 's/-Xlog:gc=info:file=\${LOG_DIR}\/\${GC_LOG_FILENAME}::filecount=5,filesize=64m//g' /opt/bookkeeper/bin/common.sh
 
 ENTRYPOINT [ "/bin/bash", "/opt/bookkeeper/scripts/pravega_entrypoint.sh" ]
 CMD ["bookie"]
