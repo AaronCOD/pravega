@@ -47,7 +47,7 @@ class ThrottlerCalculator {
      * Maximum delay (millis) we are willing to introduce in order to throttle the incoming operations.
      */
     @VisibleForTesting
-    static final int MAX_DELAY_MILLIS = 25000;
+    static final int MAX_DELAY_MILLIS = 1000;
     /**
      * Adjustment to the target utilization ratio at or above which throttling will begin to apply. This value helps
      * separate the goals of the {@link ThrottlerCalculator.CacheThrottler} (slow operations if we exceed the target) and
@@ -75,7 +75,7 @@ class ThrottlerCalculator {
      * Maximum size (in number of operations) of the OperationLog, above which maximum throttling will be applied.
      */
     @VisibleForTesting
-    static final int OPERATION_LOG_MAX_SIZE = 1_000_000;
+    static final int OPERATION_LOG_MAX_SIZE = 5_000_000;
     /**
      * Desired size (in number of operations) of the OperationLog, above which a gradual throttling will begin.
      */
