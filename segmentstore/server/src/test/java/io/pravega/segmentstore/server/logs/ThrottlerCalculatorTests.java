@@ -166,7 +166,7 @@ public class ThrottlerCalculatorTests {
                     Assert.assertTrue("Unexpected value from isThrottlingRequired() when throttling is expected: " + v,
                             tc.isThrottlingRequired());
                     ThrottlerCalculator.DelayResult r = tc.getThrottlingDelay();
-                    AssertExtensions.assertGreaterThan("Expected throttling value to increase when test value increases: " + v,
+                    AssertExtensions.assertGreaterThanOrEqual("Expected throttling value to increase when test value increases: " + v,
                             lastValue.get(), r.getDurationMillis());
                     AssertExtensions.assertLessThanOrEqual("Expected throttling value to be capped: " + v,
                             ThrottlerCalculator.MAX_DELAY_MILLIS, r.getDurationMillis());
