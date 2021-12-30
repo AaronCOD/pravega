@@ -329,7 +329,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     CompletableOperation o = operations.poll();
                     this.metrics.operationQueueWaitTime(o.getTimer().getElapsedMillis());
                     try {
-                        if(o.getOperation().getDesiredPriority() != null && o.getOperation().getDesiredPriority().isThrottlingExempt()){
+                        if (o.getOperation().getDesiredPriority() != null && o.getOperation().getDesiredPriority().isThrottlingExempt()) {
                             log.debug("queue wait time for critical operation {} is {}", o.getOperation(), o.getTimer().getElapsedMillis());
                         }
                         processOperation(o);
