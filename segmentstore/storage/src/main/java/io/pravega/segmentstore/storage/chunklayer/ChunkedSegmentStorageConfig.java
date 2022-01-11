@@ -53,7 +53,8 @@ public class ChunkedSegmentStorageConfig {
     public static final Property<Integer> GARBAGE_COLLECTION_MAX_TXN_BATCH_SIZE = Property.named("garbage.collection.txn.batch.size.max", 5000);
     public static final Property<Integer> MAX_METADATA_ENTRIES_IN_BUFFER = Property.named("metadata.buffer.size.max", 1024);
     public static final Property<Integer> MAX_METADATA_ENTRIES_IN_CACHE = Property.named("metadata.cache.size.max", 5000);
-
+    public static final Property<Integer> HACK_SLTS_READ_DELAY_MILLIS = Property.named("hack.slts.read.delay.millis", 0);
+    public static final Property<Integer> HACK_SLTS_WRITE_DELAY_MILLIS = Property.named("hack.slts.write.delay.millis", 0);
     public static final Property<Integer> JOURNAL_SNAPSHOT_UPDATE_FREQUENCY = Property.named("journal.snapshot.update.frequency.minutes", 5);
     public static final Property<Integer> MAX_PER_SNAPSHOT_UPDATE_COUNT = Property.named("journal.snapshot.update.count.max", 100);
     public static final Property<Integer> MAX_JOURNAL_READ_ATTEMPTS = Property.named("journal.snapshot.attempts.read.max", 100);
@@ -89,6 +90,8 @@ public class ChunkedSegmentStorageConfig {
             .maxJournalReadAttempts(100)
             .maxJournalWriteAttempts(10)
             .selfCheckEnabled(false)
+            .hackSLTSReadDelayMillis(0)
+            .hackSLTSWriteDelayMillis(0)
             .build();
 
     static final String COMPONENT_CODE = "storage";
@@ -248,6 +251,18 @@ public class ChunkedSegmentStorageConfig {
     final private boolean selfCheckEnabled;
 
     /**
+     * hack config for inject random write delays in SLTS path
+     */
+    @Getter
+    final private int hackSLTSWriteDelayMillis;
+
+   /**
+     * hack config for inject random write delays in SLTS path
+     */
+    @Getter
+    final private int hackSLTSReadDelayMillis;
+
+    /**
      * Creates a new instance of the ChunkedSegmentStorageConfig class.
      *
      * @param properties The TypedProperties object to read Properties from.
@@ -279,6 +294,8 @@ public class ChunkedSegmentStorageConfig {
         this.indexBlockSize = properties.getLong(READ_INDEX_BLOCK_SIZE);
         this.maxEntriesInTxnBuffer = properties.getInt(MAX_METADATA_ENTRIES_IN_BUFFER);
         this.maxEntriesInCache = properties.getInt(MAX_METADATA_ENTRIES_IN_CACHE);
+        this.hackSLTSWriteDelayMillis = properties.getInt(HACK_SLTS_WRITE_DELAY_MILLIS);
+        this.hackSLTSReadDelayMillis = properties.getInt(HACK_SLTS_READ_DELAY_MILLIS);
     }
 
     /**
