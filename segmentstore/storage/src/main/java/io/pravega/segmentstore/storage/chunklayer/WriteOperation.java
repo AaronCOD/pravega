@@ -33,12 +33,14 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 import java.io.InputStream;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -60,6 +62,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
     private final long offset;
     private final InputStream data;
     private final int length;
+    private final int hackDelayMillis;
     private final ChunkedSegmentStorage chunkedSegmentStorage;
     private final long traceId;
     private final Timer timer;
@@ -82,7 +85,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
 
     private volatile boolean didSegmentLayoutChange = false;
 
-    WriteOperation(ChunkedSegmentStorage chunkedSegmentStorage, SegmentHandle handle, long offset, InputStream data, int length) {
+    WriteOperation(ChunkedSegmentStorage chunkedSegmentStorage, SegmentHandle handle, long offset, InputStream data, int length, int hackDelayMillis) {
         this.handle = handle;
         this.offset = offset;
         this.data = data;
@@ -90,6 +93,8 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
         this.chunkedSegmentStorage = chunkedSegmentStorage;
         traceId = LoggerHelpers.traceEnter(log, "write", handle, offset, length);
         timer = new Timer();
+        this.hackDelayMillis = hackDelayMillis;
+        log.info("inject write delay for {} ms", hackDelayMillis);
     }
 
     @Override
@@ -126,6 +131,8 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                                 return getLastChunk(txn)
                                         .thenComposeAsync(v ->
                                                         writeData(txn)
+                                                                // HACK: delay a while before commit the metadata
+                                                                .thenCompose(vvv -> createDelayFuture(hackDelayMillis))
                                                                 .thenComposeAsync(vv ->
                                                                                 commit(txn)
                                                                                         .thenApplyAsync(vvvv ->
@@ -146,6 +153,10 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
             throw new CompletionException(new StorageNotPrimaryException(handle.getSegmentName(), ex));
         }
         throw new CompletionException(ex);
+    }
+
+    private CompletableFuture<Void> createDelayFuture(int millis) {
+        return Futures.delayedFuture(Duration.ofMillis(millis), (ScheduledExecutorService) chunkedSegmentStorage.getExecutor());
     }
 
     private Object postCommit() {
