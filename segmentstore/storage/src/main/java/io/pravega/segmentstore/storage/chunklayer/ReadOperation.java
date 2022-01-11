@@ -116,7 +116,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
                                         return readData(txn);
                                     }, chunkedSegmentStorage.getExecutor())
                                     // HACK: delay a while after read chunk
-                                    .thenCompose(vv -> createDelayFuture(hackDelayMillis))
+                                    .thenComposeAsync(vv -> createDelayFuture(hackDelayMillis), chunkedSegmentStorage.getExecutor())
                                     .exceptionally(ex -> {
                                         log.debug("{} read - exception op={}, segment={}, offset={}, bytesRead={}.",
                                                 chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), offset, totalBytesRead);
