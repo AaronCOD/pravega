@@ -256,7 +256,7 @@ public class ChunkedSegmentStorageConfig {
     @Getter
     final private int hackSLTSWriteDelayMillis;
 
-   /**
+    /**
      * hack config for inject random write delays in SLTS path
      */
     @Getter
