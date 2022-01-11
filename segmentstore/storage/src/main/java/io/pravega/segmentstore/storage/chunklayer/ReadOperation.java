@@ -88,6 +88,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
         traceId = LoggerHelpers.traceEnter(log, "read", handle, offset, length);
         timer = new Timer();
         this.hackDelayMillis = hackDelayMillis;
+        log.info("inject read delay for {} ms", hackDelayMillis);
     }
 
     @Override
