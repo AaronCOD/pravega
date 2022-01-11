@@ -134,7 +134,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                                         .thenComposeAsync(v ->
                                                         writeData(txn)
                                                                 // HACK: delay a while before commit the metadata
-                                                                .thenCompose(vvv -> createDelayFuture(hackDelayMillis))
+                                                                .thenComposeAsync(vvv -> createDelayFuture(hackDelayMillis), chunkedSegmentStorage.getExecutor())
                                                                 .thenComposeAsync(vv ->
                                                                                 commit(txn)
                                                                                         .thenApplyAsync(vvvv ->
