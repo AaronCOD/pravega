@@ -47,11 +47,7 @@ import lombok.val;
 import javax.annotation.concurrent.GuardedBy;
 import java.io.InputStream;
 import java.time.Duration;
-import java.util.Arrays;
-import java.util.ConcurrentModificationException;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -411,7 +407,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
         if (null == handle) {
             return CompletableFuture.failedFuture(new IllegalArgumentException("handle must not be null"));
         }
-        return executeSerialized(new WriteOperation(this, handle, offset, data, length), handle.getSegmentName());
+        return executeSerialized(new WriteOperation(this, handle, offset, data, length, config.getHackSLTSWriteDelayMillis()), handle.getSegmentName());
     }
 
     /**
@@ -626,7 +622,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
     @Override
     public CompletableFuture<Integer> read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length, Duration timeout) {
         checkInitialized();
-        return executeParallel(new ReadOperation(this, handle, offset, buffer, bufferOffset, length), handle.getSegmentName());
+        return executeParallel(new ReadOperation(this, handle, offset, buffer, bufferOffset, length, config.getHackSLTSReadDelayMillis()), handle.getSegmentName());
     }
 
     @Override
