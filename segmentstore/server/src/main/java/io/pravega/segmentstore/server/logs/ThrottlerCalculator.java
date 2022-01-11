@@ -75,7 +75,7 @@ class ThrottlerCalculator {
      * Maximum size (in number of operations) of the OperationLog, above which maximum throttling will be applied.
      */
     @VisibleForTesting
-    static final int OPERATION_LOG_MAX_SIZE = 5;
+    static final int OPERATION_LOG_MAX_SIZE = 50_000;
     /**
      * Desired size (in number of operations) of the OperationLog, above which a gradual throttling will begin.
      */
