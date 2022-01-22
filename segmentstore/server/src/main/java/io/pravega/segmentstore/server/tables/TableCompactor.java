@@ -293,6 +293,7 @@ abstract class TableCompactor {
         val totalLength = new AtomicInteger(0);
         args.getAll().stream().sorted(Comparator.comparingLong(c -> c.entry.getKey().getVersion()))
                 .forEach(c -> {
+                    log.info("{}: (ISSUE-6539) COMPACTOR COPYING {}", this.traceLogId, c);
                     toWrite.add(c.entry);
                     generateIndexUpdates(c, totalLength.get(), attributes);
                     totalLength.addAndGet(SERIALIZER.getUpdateLength(c.entry));

@@ -233,6 +233,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
                             .thenComposeAsync(storageMetadata -> {
                                 val segmentMetadata = (SegmentMetadata) storageMetadata;
                                 checkSegmentExists(streamSegmentName, segmentMetadata);
+                                log.info("{}: (ISSUE-6539) OPEN WRITE FOR SEGMENT {} Metadata={}", logPrefix, streamSegmentName, storageMetadata);
                                 segmentMetadata.checkInvariants();
                                 // This segment was created by an older segment store. Need to start a fresh new chunk.
                                 final CompletableFuture<Void> f;
@@ -346,6 +347,7 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
             // Update and commit
             // If This instance is fenced this update will fail.
             txn.update(segmentMetadata);
+            log.info("{}: (ISSUE-6539) claimOwnership FOR SEGMENT {} Metadata={}", logPrefix, segmentMetadata.getName(), segmentMetadata);
             return txn.commit();
         }, executor);
     }
@@ -643,6 +645,8 @@ public class ChunkedSegmentStorage implements Storage, StatsReporter {
                             .thenApplyAsync(storageMetadata -> {
                                 SegmentMetadata segmentMetadata = (SegmentMetadata) storageMetadata;
                                 checkSegmentExists(streamSegmentName, segmentMetadata);
+                                log.info("{}: (ISSUE-6539) getStreamSegmentInfo FOR SEGMENT {} Metadata={}", logPrefix, streamSegmentName, storageMetadata);
+
                                 segmentMetadata.checkInvariants();
 
                                 val retValue = StreamSegmentInformation.builder()

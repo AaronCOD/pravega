@@ -105,7 +105,7 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
                                     TransactionData txnData = SERIALIZER.deserialize(arr);
                                     txnData.setDbObject(entry.getKey().getVersion());
                                     txnData.setPersisted(true);
-                                    log.info("{}: (ISSUE-6539) KEY GOT FROM TABLE SEGMENT kEY: {}, VALUE: {}, VERSION {}.",
+                                    log.info("{}: (ISSUE-6539) KEY GOT FROM TABLE SEGMENT KEY: {}, VALUE: {}, VERSION {}.",
                                             tableName, entry.getKey(), entry.getValue(), entry.getKey().getVersion());
                                     TABLE_GET_LATENCY.reportSuccessEvent(t.getElapsed());
                                     METADATA_FOUND_IN_STORE.inc();
@@ -174,6 +174,10 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
                                 int i = 0;
                                 for (TableEntry tableEntry : toUpdate) {
                                     entryToTxnDataMap.get(tableEntry).setDbObject(ret.get(i));
+                                    log.info("{}: (ISSUE-6539) KEY AFTER TABLE SEGMENT WRITE KEY: {}, VALUE: {}, VERSION {}.",
+                                            tableName,
+                                            entryToTxnDataMap.get(tableEntry).getKey(), entryToTxnDataMap.get(tableEntry).getValue(),
+                                            ret.get(i));
                                     i++;
                                 }
                                 // Delete deleted keys. They were already "marked as deleted" in earlier step.
