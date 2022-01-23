@@ -251,12 +251,12 @@ class ContainerKeyIndex implements AutoCloseable {
             if (existingValue == null) {
                 // Key Hash does not exist in the cache (it may or may not exist at all). Add a placeholder and keep
                 // track of it so we can look it up.
-                log.info("{}: (ISSUE-6539) KEY DOES NOT EXIST IN TAIL CACHE HASH: {}", hash);
+                log.info("{}: (ISSUE-6539) KEY DOES NOT EXIST IN TAIL CACHE HASH: {}", this.traceObjectId, hash);
                 result.put(hash, TableKey.NOT_EXISTS);
                 toLookup.add(hash);
             } else if (!existingValue.isRemoval()) {
                 // Key Hash exists.
-                log.info("{}: (ISSUE-6539) KEY EXISTS IN TAIL CACHE HASH: {}, OFFSET: {}", hash, existingValue.getSegmentOffset());
+                log.info("{}: (ISSUE-6539) KEY EXISTS IN TAIL CACHE HASH: {}, OFFSET: {}", this.traceObjectId, hash, existingValue.getSegmentOffset());
                 result.put(hash, existingValue.getSegmentOffset());
             } else {
                 long backpointerOffset = this.cache.getBackpointer(segment.getSegmentId(), existingValue.getSegmentOffset());
@@ -270,7 +270,7 @@ class ContainerKeyIndex implements AutoCloseable {
                     // to the caller.
                     result.put(hash, existingValue.getSegmentOffset());
                 }
-                log.info("{}: (ISSUE-6539) KEY REMOVED HASH: {}, OFFSET: {}, BACKPOINTER: {}", hash, existingValue.getSegmentOffset(), backpointerOffset);
+                log.info("{}: (ISSUE-6539) KEY REMOVED HASH: {}, OFFSET: {}, BACKPOINTER: {}", this.traceObjectId, hash, existingValue.getSegmentOffset(), backpointerOffset);
             }
         }
 

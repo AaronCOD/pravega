@@ -105,8 +105,8 @@ public class TableBasedMetadataStore extends BaseMetadataStore {
                                     TransactionData txnData = SERIALIZER.deserialize(arr);
                                     txnData.setDbObject(entry.getKey().getVersion());
                                     txnData.setPersisted(true);
-                                    log.info("{}: (ISSUE-6539) KEY GOT FROM TABLE SEGMENT KEY: {}, VALUE: {}, VERSION {}.",
-                                            tableName, entry.getKey(), entry.getValue(), entry.getKey().getVersion());
+                                    log.info("{}: (ISSUE-6539) KEY GOT FROM TABLE SEGMENT KEY: {}, VALUE: {}, VERSION {}. ",
+                                            tableName, txnData.getKey(), txnData.getValue(), entry.getKey().getVersion());
                                     TABLE_GET_LATENCY.reportSuccessEvent(t.getElapsed());
                                     METADATA_FOUND_IN_STORE.inc();
                                     return txnData;
