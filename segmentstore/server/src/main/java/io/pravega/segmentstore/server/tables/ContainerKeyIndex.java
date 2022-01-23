@@ -944,6 +944,9 @@ class ContainerKeyIndex implements AutoCloseable {
                 log.debug("{}: TableSegment {} is not fully recovered. Queuing 1 task.", traceObjectId, segment.getSegmentId());
                 if (firstTask) {
                     setupRecoveryTask(task);
+                    SegmentProperties sp = segment.getInfo();
+                    lastIndexedOffset = sp.getStartOffset();
+                    log.info("{}: (ISSUE-6539) STARTING TAIL CACHE FROM BEGINNING ({}) OF THE SEGMENT {}.", traceObjectId, lastIndexedOffset, segment.getSegmentId());
                     assert lastIndexedOffset >= 0;
                     triggerCacheTailIndex(segment, lastIndexedOffset, task);
                 }
