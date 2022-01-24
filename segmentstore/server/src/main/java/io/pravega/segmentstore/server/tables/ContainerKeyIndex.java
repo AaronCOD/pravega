@@ -50,6 +50,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -250,10 +251,12 @@ class ContainerKeyIndex implements AutoCloseable {
             if (existingValue == null) {
                 // Key Hash does not exist in the cache (it may or may not exist at all). Add a placeholder and keep
                 // track of it so we can look it up.
+                log.info("{}: (ISSUE-6539) KEY DOES NOT EXIST IN TAIL CACHE HASH: {}", this.traceObjectId, hash);
                 result.put(hash, TableKey.NOT_EXISTS);
                 toLookup.add(hash);
             } else if (!existingValue.isRemoval()) {
                 // Key Hash exists.
+                log.info("{}: (ISSUE-6539) KEY EXISTS IN TAIL CACHE HASH: {}, OFFSET: {}", this.traceObjectId, hash, existingValue.getSegmentOffset());
                 result.put(hash, existingValue.getSegmentOffset());
             } else {
                 long backpointerOffset = this.cache.getBackpointer(segment.getSegmentId(), existingValue.getSegmentOffset());
@@ -267,6 +270,7 @@ class ContainerKeyIndex implements AutoCloseable {
                     // to the caller.
                     result.put(hash, existingValue.getSegmentOffset());
                 }
+                log.info("{}: (ISSUE-6539) KEY REMOVED HASH: {}, OFFSET: {}, BACKPOINTER: {}", this.traceObjectId, hash, existingValue.getSegmentOffset(), backpointerOffset);
             }
         }
 
@@ -640,11 +644,12 @@ class ContainerKeyIndex implements AutoCloseable {
 
         // Begin a loop which will end when either we've reached the target offset (defined in the RecoveryTask) or when
         // the recovery task itself has been cancelled (i.e., segment evicted, shutting down, etc.).
+        Map<UUID, Long> tailCachePreIndexVersionTracker = new ConcurrentHashMap<>();
         Futures.loop(
                 () -> !task.task.isDone() && preIndexOffset.get() < task.triggerIndexOffset,
                 () -> {
                     int maxLength = (int) Math.min(this.config.getMaxTailCachePreIndexBatchLength(), task.triggerIndexOffset - preIndexOffset.get());
-                    return preIndexBatch(segment, preIndexOffset.get(), maxLength)
+                    return preIndexBatch(segment, preIndexOffset.get(), maxLength, tailCachePreIndexVersionTracker)
                             .thenAccept(preIndexOffset::set);
                 },
                 this.executor)
@@ -654,7 +659,8 @@ class ContainerKeyIndex implements AutoCloseable {
                 });
     }
 
-    private CompletableFuture<Long> preIndexBatch(DirectSegmentAccess segment, long startOffset, int maxLength) {
+    private CompletableFuture<Long> preIndexBatch(DirectSegmentAccess segment, long startOffset, int maxLength,
+                                                  Map<UUID, Long> tailCachePreIndexVersionTracker) {
         log.trace("{}: Tail-caching batch started for Table Segment {}. StartOffset={}, MaxLength={}.",
                 this.traceObjectId, segment.getSegmentId(), startOffset, maxLength);
         val timer = new Timer();
@@ -664,7 +670,7 @@ class ContainerKeyIndex implements AutoCloseable {
                 .thenApplyAsync(inputData -> {
                     // Parse out all Table Keys and collect their latest offsets, as well as whether they were deleted.
                     val updates = new TailUpdates();
-                    collectLatestOffsets(inputData, startOffset, maxLength, updates);
+                    collectLatestOffsetsWithHighestVersion(inputData, startOffset, maxLength, updates, tailCachePreIndexVersionTracker);
 
                     // Incorporate that into the cache.
                     this.cache.includeTailCache(segment.getSegmentId(), updates.byBucket);
@@ -679,7 +685,8 @@ class ContainerKeyIndex implements AutoCloseable {
     }
 
     @SneakyThrows(IOException.class)
-    private void collectLatestOffsets(BufferView input, long startOffset, int maxLength, TailUpdates result) {
+    private void collectLatestOffsetsWithHighestVersion(BufferView input, long startOffset, int maxLength, TailUpdates result,
+                                                        Map<UUID, Long> tailCachePreIndexVersionTracker) {
         EntrySerializer serializer = new EntrySerializer();
         long nextOffset = startOffset;
         final long maxOffset = startOffset + maxLength;
@@ -688,7 +695,18 @@ class ContainerKeyIndex implements AutoCloseable {
             while (nextOffset < maxOffset) {
                 val e = AsyncTableEntryReader.readEntryComponents(inputReader, nextOffset, serializer);
                 val hash = this.keyHasher.hash(e.getKey());
-                result.add(hash, nextOffset, e.getHeader().getTotalLength(), e.getHeader().isDeletion());
+                // Only add in the tail cache the new entries or the entries whose version is higher than the observed one.
+                log.info("{}: (ISSUE-6539) SIZE OF TAIL-CACHING MAP VERSION TRACKER {}", this.traceObjectId, tailCachePreIndexVersionTracker.size());
+                log.info("{}: (ISSUE-6539) ATTEMPTING TO TAIL-CACHING ENTRY HASH: {}, VERSION: {}, HEADER: {}", this.traceObjectId, hash, e.getVersion(), e.getHeader().toString());
+                if (!tailCachePreIndexVersionTracker.containsKey(hash) || tailCachePreIndexVersionTracker.get(hash) < e.getVersion()) {
+                    log.info("{}: (ISSUE-6539) ACCEPTING ENTRY HASH: {}, VERSION: {}, HEADER: {}", this.traceObjectId, hash, e.getVersion(), e.getHeader().toString());
+                    tailCachePreIndexVersionTracker.put(hash, e.getVersion());
+                    result.add(hash, nextOffset, e.getHeader().getTotalLength(), e.getHeader().isDeletion());
+                } else {
+                    log.info("{}: (ISSUE-6539) DISCARDING ENTRY HASH: {}, VERSION: {}, HEADER: {}", this.traceObjectId, hash, e.getVersion(), e.getHeader().toString());
+                }
+                // Irrespective of whether the entry is added to the tail updates, set the max processed offset.
+                result.setMaxOffset(nextOffset, e.getHeader().getTotalLength());
                 nextOffset += e.getHeader().getTotalLength();
             }
         } catch (BufferView.Reader.OutOfBoundsException ex) {
@@ -722,6 +740,10 @@ class ContainerKeyIndex implements AutoCloseable {
             CacheBucketOffset cbo = new CacheBucketOffset(offset, isDeletion);
             this.byBucket.put(keyHash, cbo);
             this.keyCount++;
+            setMaxOffset(offset, serializationLength);
+        }
+
+        void setMaxOffset(long offset, int serializationLength) {
             this.maxOffset = offset + serializationLength;
         }
     }
@@ -925,6 +947,9 @@ class ContainerKeyIndex implements AutoCloseable {
                 log.debug("{}: TableSegment {} is not fully recovered. Queuing 1 task.", traceObjectId, segment.getSegmentId());
                 if (firstTask) {
                     setupRecoveryTask(task);
+                    SegmentProperties sp = segment.getInfo();
+                    lastIndexedOffset = sp.getStartOffset();
+                    log.info("{}: (ISSUE-6539) STARTING TAIL CACHE FROM BEGINNING ({}) OF THE SEGMENT {}.", traceObjectId, lastIndexedOffset, segment.getSegmentId());
                     assert lastIndexedOffset >= 0;
                     triggerCacheTailIndex(segment, lastIndexedOffset, task);
                 }

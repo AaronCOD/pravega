@@ -33,12 +33,14 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 import java.io.InputStream;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -60,6 +62,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
     private final long offset;
     private final InputStream data;
     private final int length;
+    private final int hackDelayMillis;
     private final ChunkedSegmentStorage chunkedSegmentStorage;
     private final long traceId;
     private final Timer timer;
@@ -82,7 +85,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
 
     private volatile boolean didSegmentLayoutChange = false;
 
-    WriteOperation(ChunkedSegmentStorage chunkedSegmentStorage, SegmentHandle handle, long offset, InputStream data, int length) {
+    WriteOperation(ChunkedSegmentStorage chunkedSegmentStorage, SegmentHandle handle, long offset, InputStream data, int length, int hackDelayMillis) {
         this.handle = handle;
         this.offset = offset;
         this.data = data;
@@ -90,6 +93,8 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
         this.chunkedSegmentStorage = chunkedSegmentStorage;
         traceId = LoggerHelpers.traceEnter(log, "write", handle, offset, length);
         timer = new Timer();
+        this.hackDelayMillis = hackDelayMillis;
+        log.info("inject write delay for {} ms", hackDelayMillis);
     }
 
     @Override
@@ -110,7 +115,9 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                                 segmentMetadata = (SegmentMetadata) storageMetadata;
                                 // Validate preconditions.
                                 checkState();
-
+                                log.info("{}: (ISSUE-6539) WriteOperation::call FOR SEGMENT {} Txn={} Metadata={}",
+                                        chunkedSegmentStorage.getLogPrefix(), streamSegmentName,
+                                        txn.getVersion(), storageMetadata);
                                 isSystemSegment = chunkedSegmentStorage.isStorageSystemSegment(segmentMetadata);
 
                                 // Check if this is a first write after ownership changed.
@@ -126,13 +133,15 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                                 return getLastChunk(txn)
                                         .thenComposeAsync(v ->
                                                         writeData(txn)
+                                                                // HACK: delay a while before commit the metadata
+                                                                .thenComposeAsync(vvv -> createDelayFuture(hackDelayMillis), chunkedSegmentStorage.getExecutor())
                                                                 .thenComposeAsync(vv ->
                                                                                 commit(txn)
                                                                                         .thenApplyAsync(vvvv ->
                                                                                                 postCommit(), chunkedSegmentStorage.getExecutor())
                                                                                         .exceptionally(this::handleException),
                                                                         chunkedSegmentStorage.getExecutor())
-                                                                .thenRunAsync(this::logEnd, chunkedSegmentStorage.getExecutor()),
+                                                                .thenRunAsync(() -> logEnd(txn), chunkedSegmentStorage.getExecutor()),
                                                 chunkedSegmentStorage.getExecutor());
                             }, chunkedSegmentStorage.getExecutor());
                 }, chunkedSegmentStorage.getExecutor());
@@ -146,6 +155,10 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
             throw new CompletionException(new StorageNotPrimaryException(handle.getSegmentName(), ex));
         }
         throw new CompletionException(ex);
+    }
+
+    private CompletableFuture<Void> createDelayFuture(int millis) {
+        return Futures.delayedFuture(Duration.ofMillis(millis), (ScheduledExecutorService) chunkedSegmentStorage.getExecutor());
     }
 
     private Object postCommit() {
@@ -164,7 +177,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
         }
     }
 
-    private void logEnd() {
+    private void logEnd(MetadataTransaction txn) {
         val elapsed = timer.getElapsed();
         SLTS_WRITE_LATENCY.reportSuccessEvent(elapsed);
         SLTS_WRITE_BYTES.add(length);
@@ -180,11 +193,11 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
             SLTS_WRITE_INSTANT_TPUT.reportSuccessValue(bytesPerSecond);
         }
         if (chunkedSegmentStorage.getConfig().getLateWarningThresholdInMillis() < elapsed.toMillis()) {
-            log.warn("{} write - late op={}, segment={}, offset={}, length={}, latency={}.",
-                    chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), offset, length, elapsed.toMillis());
+            log.warn("{} write - late op={}, txn={}, segment={}, offset={}, length={}, latency={}.",
+                    chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), txn.getVersion(), handle.getSegmentName(), offset, length, elapsed.toMillis());
         } else {
-            log.debug("{} write - finished op={}, segment={}, offset={}, length={}, latency={}.",
-                    chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), offset, length, elapsed.toMillis());
+            log.debug("{} write - finished op={}, txn={}, segment={}, offset={}, length={}, latency={}.",
+                    chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), txn.getVersion(), handle.getSegmentName(), offset, length, elapsed.toMillis());
         }
         LoggerHelpers.traceLeave(log, "write", traceId, handle, offset);
     }
@@ -197,7 +210,9 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
                     "Number of chunks added (%s) must match number of system log records(%s)", chunksAddedCount.get(), systemLogRecords.size());
             txn.setExternalCommitStep(() -> chunkedSegmentStorage.getSystemJournal().commitRecords(systemLogRecords));
         }
-
+        log.info("{}: (ISSUE-6539) WriteOperation::commit FOR SEGMENT {} Txn={} Metadata={}",
+                chunkedSegmentStorage.getLogPrefix(), segmentMetadata.getName(),
+                txn.getVersion(), segmentMetadata);
         // if layout did not change then commit with lazyWrite.
         return txn.commit(!didSegmentLayoutChange && chunkedSegmentStorage.getConfig().isLazyCommitEnabled())
                 .thenRunAsync(() -> isCommitted = true, chunkedSegmentStorage.getExecutor());

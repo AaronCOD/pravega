@@ -287,6 +287,9 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
                         }
 
                         // It is very important to keep this value up-to-date and correct.
+                        log.info("{}: (ISSUE-6539) SETTING STORAGE LENGTH FOR SEGMENT NAME {}. SEGMENT INFO FROM TABLE SEGMENT: NAME {}, " +
+                                "LENGTH {}, START OFFSET {}.", this.traceObjectId, this.metadata.getName(),
+                                segmentInfo.getName(), segmentInfo.getLength(), segmentInfo.getStartOffset());
                         this.metadata.setStorageLength(segmentInfo.getLength());
                     }
 
