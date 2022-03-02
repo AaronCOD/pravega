@@ -36,6 +36,7 @@ import java.util.Collections;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -60,6 +61,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
     private final byte[] buffer;
     private final int bufferOffset;
     private final int length;
+    private final int hackDelayMillis;
     private final ChunkedSegmentStorage chunkedSegmentStorage;
     private final long traceId;
     private final Timer timer;
@@ -76,7 +78,7 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
     private volatile int bytesToRead;
     private final AtomicInteger cntChunksRead = new AtomicInteger();
 
-    ReadOperation(ChunkedSegmentStorage chunkedSegmentStorage, SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length) {
+    ReadOperation(ChunkedSegmentStorage chunkedSegmentStorage, SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length, int hackDelayMillis) {
         this.handle = handle;
         this.offset = offset;
         this.buffer = buffer;
@@ -85,6 +87,8 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
         this.chunkedSegmentStorage = chunkedSegmentStorage;
         traceId = LoggerHelpers.traceEnter(log, "read", handle, offset, length);
         timer = new Timer();
+        this.hackDelayMillis = hackDelayMillis;
+        log.info("inject read delay for {} ms", hackDelayMillis);
     }
 
     @Override
@@ -111,6 +115,8 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
                                         // Now read.
                                         return readData(txn);
                                     }, chunkedSegmentStorage.getExecutor())
+                                    // HACK: delay a while after read chunk
+                                    .thenComposeAsync(vv -> createDelayFuture(hackDelayMillis), chunkedSegmentStorage.getExecutor())
                                     .exceptionally(ex -> {
                                         log.debug("{} read - exception op={}, segment={}, offset={}, bytesRead={}.",
                                                 chunkedSegmentStorage.getLogPrefix(), System.identityHashCode(this), handle.getSegmentName(), offset, totalBytesRead);
@@ -198,6 +204,10 @@ class ReadOperation implements Callable<CompletableFuture<Integer>> {
                     return CompletableFuture.completedFuture(null);
                 }, chunkedSegmentStorage.getExecutor())
                 .thenCompose(v -> Futures.allOf(chunkReadFutures));
+    }
+
+    private CompletableFuture<Void> createDelayFuture(int millis) {
+        return Futures.delayedFuture(Duration.ofMillis(millis), (ScheduledExecutorService) chunkedSegmentStorage.getExecutor());
     }
 
     private CompletableFuture<Void> readChunk(String chunkName,
