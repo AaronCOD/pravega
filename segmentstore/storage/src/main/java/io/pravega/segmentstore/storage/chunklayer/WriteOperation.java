@@ -94,6 +94,7 @@ class WriteOperation implements Callable<CompletableFuture<Void>> {
         traceId = LoggerHelpers.traceEnter(log, "write", handle, offset, length);
         timer = new Timer();
         this.hackDelayMillis = hackDelayMillis;
+        log.info("WriteOperation delay {}", hackDelayMillis);
     }
 
     @Override
