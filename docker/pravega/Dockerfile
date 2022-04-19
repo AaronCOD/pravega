@@ -13,16 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-FROM adoptopenjdk/openjdk11:jre-11.0.11_9-alpine
+FROM atlantic/javabase:0.0.0.1-4
 
-RUN apk --update --no-cache add \
-    #used in readiness and liveness probes
-    curl \
-    #used in wait_for function
-    python3 \
-    #used in init_kubernetes
-    jq \
-    && ln -sf python3 /usr/bin/python
+# Atlantic javabase defines a 'container' user so we don't run as root
+
+RUN echo "container:x:1000:container" >> /etc/group
+
+RUN set -x \
+    && zypper addrepo http://asdrepo.isus.emc.com:8081/artifactory/atlantic-rpm-build/sles/15sp3/master/master.repo \
+    && zypper install -y vim curl wget python3 python3-pip jq gzip glibc-locale sudo \
+    && ln -fs /usr/bin/python3 /usr/bin/python \
+    && rm -rf /var/log/zypp* /var/cache/zypp/* /etc/zypp/repos.d/*
 
 EXPOSE 9090 9091 10000 12345
 
@@ -31,6 +32,7 @@ WORKDIR /opt/pravega
 COPY pravega/ /opt/pravega/
 COPY scripts/ /opt/pravega/scripts/
 
-RUN chmod +x -R /opt/pravega/scripts/
-
+RUN chown -R container:1000 /opt/pravega/
+RUN chmod +x -R /opt/pravega/
+USER container
 ENTRYPOINT [ "/opt/pravega/scripts/entrypoint.sh" ]
