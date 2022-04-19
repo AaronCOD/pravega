@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-FROM asdrepo.isus.emc.com:9042/atlantic/javabase:0.0.0.1-4
+FROM atlantic/javabase:0.0.0.1-4
 
 # Atlantic javabase defines a 'container' user so we don't run as root
 
