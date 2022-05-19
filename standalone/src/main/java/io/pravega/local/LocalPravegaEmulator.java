@@ -17,6 +17,7 @@ package io.pravega.local;
 
 import io.pravega.common.security.TLSProtocolVersion;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.segmentstore.server.store.ServiceConfig;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -67,7 +68,8 @@ public class LocalPravegaEmulator implements AutoCloseable {
                     .secureZK(enableTls)
                     .zkUrl("localhost:" + zkPort)
                     .zkPort(zkPort)
-                    .isInMemStorage(true)
+                    .dataLogType(ServiceConfig.DataLogType.CHUNKSTREAM)
+                    .storageType(ServiceConfig.StorageType.INMEMORY)
                     .isInProcController(true)
                     .controllerCount(1)
                     .isInProcSegmentStore(true)

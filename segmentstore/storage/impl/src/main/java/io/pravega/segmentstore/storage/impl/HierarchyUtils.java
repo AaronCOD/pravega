@@ -13,12 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.pravega.segmentstore.storage.impl.bookkeeper;
+package io.pravega.segmentstore.storage.impl;
 
 /**
  * Utility methods for building a hierarchical node structure.
  */
-final class HierarchyUtils {
+public final class HierarchyUtils {
     /**
      * Node path separator.
      */
@@ -40,7 +40,7 @@ final class HierarchyUtils {
      * @param depth  The hierarchy depth (0 means flat).
      * @return The hierarchical path.
      */
-    static String getPath(int nodeId, int depth) {
+    public static String getPath(int nodeId, int depth) {
         StringBuilder pathBuilder = new StringBuilder();
         int value = nodeId;
         for (int i = 0; i < depth; i++) {

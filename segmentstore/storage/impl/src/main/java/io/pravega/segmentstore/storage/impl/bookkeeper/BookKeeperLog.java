@@ -54,6 +54,7 @@ import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
+import io.pravega.segmentstore.storage.impl.HierarchyUtils;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.SneakyThrows;

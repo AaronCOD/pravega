@@ -43,6 +43,7 @@
     <allow pkg="io.jsonwebtoken" />
     <allow pkg="io.kubernetes" />
     <allow pkg="edu.umd.cs.findbugs.annotations" />
+    <allow pkg="com.emc.storageos" />
     <subpackage name="storage.s3">
         <allow pkg="software.amazon.awssdk"/>
     </subpackage>

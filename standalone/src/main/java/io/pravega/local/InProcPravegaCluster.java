@@ -73,7 +73,8 @@ public class InProcPravegaCluster implements AutoCloseable {
 
     private static final String ALL_INTERFACES = "0.0.0.0";
     private static final int THREADPOOL_SIZE = 20;
-    private boolean isInMemStorage;
+    private ServiceConfig.DataLogType dataLogType;
+    private ServiceConfig.StorageType storageType;
 
     /* Cluster name */
     private final String clusterName = "singlenode-" + UUID.randomUUID();
@@ -173,8 +174,8 @@ public class InProcPravegaCluster implements AutoCloseable {
                             && !Strings.isNullOrEmpty(this.keyPasswordFile)),
                     "TLS enabled, but not all parameters set");
 
-            this.isInProcHDFS = !this.isInMemStorage;
-            return new InProcPravegaCluster(isInMemStorage, enableAuth, enableTls, tlsProtocolVersion, enableTlsReload,
+            this.isInProcHDFS = storageType.equals(ServiceConfig.StorageType.HDFS);
+            return new InProcPravegaCluster(dataLogType, storageType, enableAuth, enableTls, tlsProtocolVersion, enableTlsReload,
                     enableMetrics, enableInfluxDB, enablePrometheus, metricsReportInterval,
                     isInProcController, controllerCount, controllerPorts, controllerURI,
                     restServerPort, isInProcSegmentStore, segmentStoreCount, segmentStorePorts, isInProcZK, zkPort, zkHost,
@@ -310,13 +311,9 @@ public class InProcPravegaCluster implements AutoCloseable {
                         .with(ServiceConfig.LISTENING_IP_ADDRESS, ALL_INTERFACES)
                         .with(ServiceConfig.CACHE_POLICY_MAX_TIME, 60)
                         .with(ServiceConfig.CACHE_POLICY_MAX_SIZE, 128 * 1024 * 1024L)
-                        .with(ServiceConfig.DATALOG_IMPLEMENTATION, isInMemStorage ?
-                                ServiceConfig.DataLogType.INMEMORY :
-                                ServiceConfig.DataLogType.BOOKKEEPER)
+                        .with(ServiceConfig.DATALOG_IMPLEMENTATION, dataLogType)
                         .with(ServiceConfig.STORAGE_LAYOUT, StorageLayoutType.ROLLING_STORAGE)
-                        .with(ServiceConfig.STORAGE_IMPLEMENTATION, isInMemStorage ?
-                                ServiceConfig.StorageType.INMEMORY.name() :
-                                ServiceConfig.StorageType.FILESYSTEM.name())
+                        .with(ServiceConfig.STORAGE_IMPLEMENTATION, storageType.name())
                         .with(ServiceConfig.ENABLE_ADMIN_GATEWAY, this.enableAdminGateway)
                         .with(ServiceConfig.ADMIN_GATEWAY_PORT, this.adminGatewayPort)
                         .with(ServiceConfig.REPLY_WITH_STACK_TRACE_ON_ERROR, this.replyWithStackTraceOnError)

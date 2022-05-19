@@ -15,6 +15,8 @@
  */
 package io.pravega.segmentstore.server.host;
 
+import com.emc.storageos.data.cs.ni.EC;
+import com.emc.storageos.data.cs.ni.NativeLibrary;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.sun.management.HotSpotDiagnosticMXBean;
@@ -30,6 +32,8 @@ import io.pravega.segmentstore.server.host.delegationtoken.TokenVerifierImpl;
 import io.pravega.segmentstore.server.host.handler.AdminConnectionListener;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.host.health.ZKHealthContributor;
+import io.pravega.segmentstore.storage.impl.chunkstream.ChunkStreamConfig;
+import io.pravega.segmentstore.storage.impl.chunkstream.ChunkStreamLogFactory;
 import io.pravega.shared.health.bindings.resources.HealthImpl;
 import io.pravega.segmentstore.server.host.stat.AutoScaleMonitor;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
@@ -90,6 +94,11 @@ public final class ServiceStarter {
     private boolean closed;
 
     //endregion
+
+    static {
+        NativeLibrary.load();
+        EC.init();
+    }
 
     //region Constructor
 
@@ -245,6 +254,8 @@ public final class ServiceStarter {
             switch (this.serviceConfig.getDataLogTypeImplementation()) {
                 case BOOKKEEPER:
                     return new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), this.zkClient, setup.getCoreExecutor());
+                case CHUNKSTREAM:
+                    return new ChunkStreamLogFactory(setup.getConfig(ChunkStreamConfig::builder), this.zkClient, setup.getCoreExecutor());
                 case INMEMORY:
                     return new InMemoryDurableDataLogFactory(setup.getCoreExecutor());
                 default:

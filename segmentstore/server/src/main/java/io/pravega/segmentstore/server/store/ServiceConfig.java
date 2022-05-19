@@ -107,7 +107,12 @@ public class ServiceConfig {
         /**
          * InMemory DataLog. Contents will be lost when the process exits.
          */
-        INMEMORY
+        INMEMORY,
+
+        /**
+         * DataLog is implemented by a Chunk Stream.
+         */
+        CHUNKSTREAM
     }
 
     public enum StorageType {

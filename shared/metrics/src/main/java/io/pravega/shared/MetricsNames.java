@@ -220,6 +220,11 @@ public final class MetricsNames {
     public static final String BK_WRITE_QUEUE_FILL_RATE = PREFIX + "segmentstore.bookkeeper.write_queue_fill";       // Per-container Histogram
     public static final String BK_LEDGER_COUNT = PREFIX + "segmentstore.bookkeeper.ledger_count";                    // Per-container Gauge
 
+    public static final String CHUNK_STREAM_WRITE_LATENCY = PREFIX + "segmentstore.chunkstream.write_latency_ms";            // Exclusively the write to ECS Chunk. Per-container Histogram
+    public static final String CHUNK_STREAM_WRITE_BYTES = PREFIX + "segmentstore.chunkstream.write_bytes";                   // Counter
+    public static final String CHUNK_STREAM_WRITE_QUEUE_SIZE = PREFIX + "segmentstore.chunkstream.write_queue_size";         // Per-container Histogram
+    public static final String CHUNK_STREAM_WRITE_QUEUE_FILL_RATE = PREFIX + "segmentstore.chunkstream.write_queue_fill";    // Per-container Histogram
+
     // StorageWriter stats
     public static final String STORAGE_WRITER_FLUSH_ELAPSED = PREFIX + "segmentstore.storagewriter.flush_elapsed_ms";         // Time to flush all processors. Per-container Histogram.
     public static final String STORAGE_WRITER_ITERATION_ELAPSED = PREFIX + "segmentstore.storagewriter.iteration_elapsed_ms"; // Total Iteration Duration. Per-container Histogram
