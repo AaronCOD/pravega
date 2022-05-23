@@ -15,17 +15,18 @@
  */
 package io.pravega.segmentstore.storage.impl.chunkstream;
 
-import com.emc.storageos.data.cs.chunk.CmDiskFileTestClient;
 import com.emc.storageos.data.cs.common.CSConfiguration;
 import com.emc.storageos.data.cs.common.ChunkConfig;
 import com.emc.storageos.data.cs.common.Cluster;
+import com.emc.storageos.data.cs.common.K8sCluster;
+import com.emc.storageos.data.cs.dt.CmClientImpl;
 import com.emc.storageos.data.cs.dt.cache.ChunkCache;
 import com.emc.storageos.data.cs.dt.cache.ChunkHashMapCache;
-import com.emc.storageos.rpc.disk.DiskServer;
+import com.emc.storageos.rpc.disk.hdd.HDDClient;
 import com.emc.storageos.rpc.disk.hdd.HDDRpcClientServer;
 import com.emc.storageos.rpc.disk.hdd.HDDRpcConfiguration;
-import com.emc.storageos.rpc.disk.hdd.HDDServer;
-import com.emc.storageos.rpc.disk.writer.DiskFileChunkWriter;
+import com.emc.storageos.rpc.dt.DTRpcConfiguration;
+import com.emc.storageos.rpc.dt.DTRpcServer;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
@@ -63,10 +64,12 @@ public class ChunkStreamLogFactory implements DurableDataLogFactory {
     private final ChunkConfig chunkConfig;
     private final ChunkStreamConfig config;
     private final ScheduledExecutorService executor;
+    private final Cluster cluster;
     private final HDDRpcClientServer diskRpcClientServer;
-    private final DiskFileChunkWriter diskFileChunkWriter;
-    private final DiskServer diskServer;
-    private final AtomicReference<CmDiskFileTestClient> cmClient;
+    private final HDDClient diskClient;
+    private final DTRpcServer rpcDTServer;
+    private final ChunkCache chunkCache = new ChunkHashMapCache();
+    private final AtomicReference<CmClientImpl> cmClient;
     @GuardedBy("this")
     private final Map<Integer, LogInitializationRecord> logInitializationTracker = new HashMap<>();
     @GuardedBy("this")
@@ -91,10 +94,13 @@ public class ChunkStreamLogFactory implements DurableDataLogFactory {
         this.namespace = zkClient.getNamespace();
         this.zkClient = Preconditions.checkNotNull(zkClient, "zkClient")
                 .usingNamespace(this.namespace + this.config.getZkMetadataPath());
+        this.cluster = new K8sCluster();
+        this.cluster.init();
         HDDRpcConfiguration hddRpcConfig = new HDDRpcConfiguration();
         this.diskRpcClientServer = new HDDRpcClientServer(hddRpcConfig);
-        this.diskFileChunkWriter = new DiskFileChunkWriter(this.csConfig);
-        this.diskServer = new HDDServer(hddRpcConfig, Cluster.ssDataPort, Cluster.ssManagePort, this.diskFileChunkWriter);
+        this.diskClient = new HDDClient(diskRpcClientServer, csConfig, cluster);
+        DTRpcConfiguration dtRpcConfiguration = new DTRpcConfiguration();
+        this.rpcDTServer = new DTRpcServer(dtRpcConfiguration);
         this.cmClient = new AtomicReference<>();
     }
 
@@ -105,12 +111,13 @@ public class ChunkStreamLogFactory implements DurableDataLogFactory {
     @Override
     public void close() {
         this.diskRpcClientServer.shutdown();
-        this.diskServer.shutdown();
-        this.diskFileChunkWriter.close();
-        CmDiskFileTestClient cm = this.cmClient.getAndSet(null);
+        this.rpcDTServer.shutdown();
+        this.chunkCache.shutdown();
+        this.cluster.shutdown();
+        CmClientImpl cm = this.cmClient.getAndSet(null);
         if (cm != null) {
             try {
-                cm.shutdown();
+                // cm.close();
             } catch (Exception ex) {
                 log.error("Unable to close cm client.", ex);
             }
@@ -125,7 +132,7 @@ public class ChunkStreamLogFactory implements DurableDataLogFactory {
     public void initialize() throws DurableDataLogException {
         Preconditions.checkState(this.cmClient.get() == null, "ChunkStreamLogFactory is already initialized.");
         try {
-            this.diskServer.start();
+            this.rpcDTServer.start();
             this.cmClient.set(startCmClient());
         } catch (IllegalArgumentException | NullPointerException ex) {
             // Most likely a configuration issue; re-throw as is.
@@ -173,7 +180,7 @@ public class ChunkStreamLogFactory implements DurableDataLogFactory {
      * @return The cm client.
      */
     @VisibleForTesting
-    public CmDiskFileTestClient getCmClient() {
+    public CmClientImpl getCmClient() {
         return this.cmClient.get();
     }
 
@@ -181,9 +188,8 @@ public class ChunkStreamLogFactory implements DurableDataLogFactory {
 
     //region Initialization
 
-    private CmDiskFileTestClient startCmClient() {
-        ChunkCache chunkCache = new ChunkHashMapCache();
-        return new CmDiskFileTestClient(this.csConfig, this.diskRpcClientServer, chunkCache);
+    private CmClientImpl startCmClient() {
+        return new CmClientImpl(csConfig, diskClient, rpcDTServer, cluster, chunkCache);
     }
 
     /**
@@ -203,14 +209,14 @@ public class ChunkStreamLogFactory implements DurableDataLogFactory {
                         && lastCmClientReset.get().getElapsed().compareTo(LOG_CREATION_INSPECTION_PERIOD) > 0) {
                     try {
                         log.info("Start creating cm client in reset.");
-                        CmDiskFileTestClient newClient = startCmClient();
+                        CmClientImpl newClient = startCmClient();
                         // If we have been able to create a new client successfully, reset the current one and update timer.
                         log.info("Successfully created new cm client, setting it as the new one to use.");
-                        CmDiskFileTestClient oldClient = this.cmClient.getAndSet(newClient);
+                        CmClientImpl oldClient = this.cmClient.getAndSet(newClient);
                         lastCmClientReset.set(new Timer());
                         // Lastly, attempt to close the old client.
                         log.info("Attempting to close old client.");
-                        oldClient.shutdown();
+                        // oldClient.close();
                     } catch (Exception e) {
                         throw new RuntimeException("Failure resetting the cm client", e);
                     }
