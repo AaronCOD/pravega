@@ -15,13 +15,12 @@
  */
 package io.pravega.segmentstore.storage.impl.chunkstream;
 
+import com.emc.storageos.data.cs.atlas.AtlasRpcCommunicator;
 import com.emc.storageos.data.cs.common.CSConfiguration;
 import com.emc.storageos.data.cs.common.ChunkConfig;
 import com.emc.storageos.data.cs.common.Cluster;
 import com.emc.storageos.data.cs.common.K8sCluster;
 import com.emc.storageos.data.cs.dt.CmClientImpl;
-import com.emc.storageos.data.cs.dt.DTLevel;
-import com.emc.storageos.data.cs.dt.DTType;
 import com.emc.storageos.data.cs.dt.cache.ChunkCache;
 import com.emc.storageos.data.cs.dt.cache.ChunkHashMapCache;
 import com.emc.storageos.rpc.disk.hdd.HDDClient;
@@ -55,6 +54,12 @@ import java.util.concurrent.atomic.AtomicReference;
 public class ChunkStreamLogFactory implements DurableDataLogFactory {
     //region Members
 
+    private static final int ATLAS_PORT = 8090;
+    private static final int ATLAS_KEEP_ALIVE_TIME_SECONDS = 5;
+    private static final int ATLAS_KEEP_ALIVE_TIMEOUT_SECONDS = 5;
+    private static final String ATLAS_SERVICE_HOSTNAME = System.getenv("ATLAS_SERVICE_HOSTNAME");
+    private static final String MY_OBJECTSTORE_NAME = System.getenv("MY_OBJECTSTORE_NAME");
+    private static final String MY_POD_IP = System.getenv("MY_POD_IP");
     // Period of inspection to meet the maximum number of log creation attempts for a given container.
     private static final Duration LOG_CREATION_INSPECTION_PERIOD = Duration.ofSeconds(60);
     // Maximum number of log creation attempts for a given container before considering resetting the BK client.
@@ -66,12 +71,13 @@ public class ChunkStreamLogFactory implements DurableDataLogFactory {
     private final ChunkConfig chunkConfig;
     private final ChunkStreamConfig config;
     private final ScheduledExecutorService executor;
-    private final Cluster cluster;
-    private final HDDRpcClientServer diskRpcClientServer;
-    private final HDDClient diskClient;
-    private final DTRpcServer rpcDTServer;
-    private final ChunkCache chunkCache = new ChunkHashMapCache();
     private final AtomicReference<CmClientImpl> cmClient;
+    private AtlasRpcCommunicator atlasRpcClient;
+    private Cluster cluster;
+    private HDDRpcClientServer diskRpcClientServer;
+    private HDDClient diskClient;
+    private DTRpcServer rpcDTServer;
+    private ChunkCache chunkCache;
     @GuardedBy("this")
     private final Map<Integer, LogInitializationRecord> logInitializationTracker = new HashMap<>();
     @GuardedBy("this")
@@ -96,16 +102,6 @@ public class ChunkStreamLogFactory implements DurableDataLogFactory {
         this.namespace = zkClient.getNamespace();
         this.zkClient = Preconditions.checkNotNull(zkClient, "zkClient")
                 .usingNamespace(this.namespace + this.config.getZkMetadataPath());
-        this.cluster = new K8sCluster();
-        this.cluster.init();
-        for (int i = 0; i < 128; i++) {
-            this.cluster.refreshDTOwnership(DTType.CT, DTLevel.Level1, i);
-        }
-        HDDRpcConfiguration hddRpcConfig = new HDDRpcConfiguration();
-        this.diskRpcClientServer = new HDDRpcClientServer(hddRpcConfig);
-        this.diskClient = new HDDClient(diskRpcClientServer, csConfig, cluster);
-        DTRpcConfiguration dtRpcConfiguration = new DTRpcConfiguration();
-        this.rpcDTServer = new DTRpcServer(dtRpcConfiguration);
         this.cmClient = new AtomicReference<>();
     }
 
@@ -115,10 +111,20 @@ public class ChunkStreamLogFactory implements DurableDataLogFactory {
 
     @Override
     public void close() {
-        this.diskRpcClientServer.shutdown();
-        this.rpcDTServer.shutdown();
-        this.chunkCache.shutdown();
-        this.cluster.shutdown();
+        if (this.diskRpcClientServer != null) {
+            this.diskRpcClientServer.shutdown();
+        }
+        if (this.rpcDTServer != null) {
+            this.rpcDTServer.shutdown();
+        }
+        if (this.chunkCache != null) {
+            this.chunkCache.shutdown();
+        }
+        if (this.cluster != null) {
+            this.cluster.shutdown();
+        }
+        this.csConfig.shutdown();
+        this.chunkConfig.shutdown();
         CmClientImpl cm = this.cmClient.getAndSet(null);
         if (cm != null) {
             try {
@@ -137,7 +143,17 @@ public class ChunkStreamLogFactory implements DurableDataLogFactory {
     public void initialize() throws DurableDataLogException {
         Preconditions.checkState(this.cmClient.get() == null, "ChunkStreamLogFactory is already initialized.");
         try {
+            this.atlasRpcClient = new AtlasRpcCommunicator(ATLAS_PORT, ATLAS_KEEP_ALIVE_TIME_SECONDS, ATLAS_KEEP_ALIVE_TIMEOUT_SECONDS, ATLAS_SERVICE_HOSTNAME);
+            this.atlasRpcClient.startConfigWatch();
+            this.cluster = new K8sCluster(this.atlasRpcClient, MY_OBJECTSTORE_NAME, MY_POD_IP);
+            this.cluster.init();
+            HDDRpcConfiguration hddRpcConfig = new HDDRpcConfiguration();
+            this.diskRpcClientServer = new HDDRpcClientServer(hddRpcConfig);
+            this.diskClient = new HDDClient(diskRpcClientServer, csConfig, cluster);
+            DTRpcConfiguration dtRpcConfiguration = new DTRpcConfiguration();
+            this.rpcDTServer = new DTRpcServer(dtRpcConfiguration);
             this.rpcDTServer.start();
+            this.chunkCache = new ChunkHashMapCache();
             this.cmClient.set(startCmClient());
         } catch (IllegalArgumentException | NullPointerException ex) {
             // Most likely a configuration issue; re-throw as is.
@@ -194,7 +210,7 @@ public class ChunkStreamLogFactory implements DurableDataLogFactory {
     //region Initialization
 
     private CmClientImpl startCmClient() {
-        return new CmClientImpl(csConfig, diskClient, rpcDTServer, cluster, chunkCache);
+        return new CmClientImpl(this.csConfig, this.diskClient, this.rpcDTServer, this.cluster, this.chunkCache);
     }
 
     /**
