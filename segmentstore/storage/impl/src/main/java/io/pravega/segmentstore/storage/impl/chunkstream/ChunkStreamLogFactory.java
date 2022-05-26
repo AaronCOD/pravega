@@ -20,6 +20,8 @@ import com.emc.storageos.data.cs.common.ChunkConfig;
 import com.emc.storageos.data.cs.common.Cluster;
 import com.emc.storageos.data.cs.common.K8sCluster;
 import com.emc.storageos.data.cs.dt.CmClientImpl;
+import com.emc.storageos.data.cs.dt.DTLevel;
+import com.emc.storageos.data.cs.dt.DTType;
 import com.emc.storageos.data.cs.dt.cache.ChunkCache;
 import com.emc.storageos.data.cs.dt.cache.ChunkHashMapCache;
 import com.emc.storageos.rpc.disk.hdd.HDDClient;
@@ -96,6 +98,9 @@ public class ChunkStreamLogFactory implements DurableDataLogFactory {
                 .usingNamespace(this.namespace + this.config.getZkMetadataPath());
         this.cluster = new K8sCluster();
         this.cluster.init();
+        for (int i = 0; i < 128; i++) {
+            this.cluster.refreshDTOwnership(DTType.CT, DTLevel.Level1, i);
+        }
         HDDRpcConfiguration hddRpcConfig = new HDDRpcConfiguration();
         this.diskRpcClientServer = new HDDRpcClientServer(hddRpcConfig);
         this.diskClient = new HDDClient(diskRpcClientServer, csConfig, cluster);
