@@ -148,6 +148,7 @@ public class ChunkStreamLogFactory implements DurableDataLogFactory {
             this.atlasRpcClient = new AtlasRpcCommunicator(ATLAS_PORT, ATLAS_KEEP_ALIVE_TIME_SECONDS, ATLAS_KEEP_ALIVE_TIMEOUT_SECONDS, ATLAS_SERVICE_HOSTNAME);
             this.atlasRpcClient.startConfigWatch();
             this.cluster = new K8sCluster(this.atlasRpcClient, MY_OBJECTSTORE_NAME, MY_POD_IP);
+            this.cluster.setRpcServer(this.rpcDTServer);
             Thread.sleep(120000);
             this.cluster.init();
             HDDRpcConfiguration hddRpcConfig = new HDDRpcConfiguration();
