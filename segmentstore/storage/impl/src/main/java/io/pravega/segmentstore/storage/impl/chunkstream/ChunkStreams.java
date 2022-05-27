@@ -15,6 +15,7 @@
  */
 package io.pravega.segmentstore.storage.impl.chunkstream;
 
+import com.emc.storageos.data.cs.dt.CmClient;
 import com.emc.storageos.data.cs.stream.ChunkStreamReader;
 import com.emc.storageos.data.cs.stream.ChunkStreamWriter;
 import io.pravega.common.Exceptions;
@@ -106,6 +107,20 @@ public class ChunkStreams {
             Exceptions.handleInterrupted(() -> streamWriter.truncate(address.getSequence()));
         } catch (Exception ex) {
             throw new DurableDataLogException(String.format("Unable to truncate chunk stream %s up to %s.", streamWriter.streamId(), address), ex);
+        }
+    }
+
+    /**
+     * Delete a chunk stream.
+     * @param streamId The id of the stream to delete.
+     * @param cmClient A reference to the cm client to use.
+     * @throws DurableDataLogException If another exception occurred. The causing exception is wrapped inside it.
+     */
+    static boolean delete(String streamId, CmClient cmClient) throws DurableDataLogException {
+        try {
+            return cmClient.deleteStream(streamId).get();
+        } catch (Exception ex) {
+            throw new DurableDataLogException(String.format("Unable to delete chunk stream %s.", streamId), ex);
         }
     }
 }
