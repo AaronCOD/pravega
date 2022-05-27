@@ -109,7 +109,7 @@ public class LogReader implements CloseableIterator<DurableDataLog.ReadItem, Dur
 
         try {
             StreamBuffer streamBuffer = this.streamReader.nextBuffer().get(this.readTimeout, TimeUnit.SECONDS);
-            return wrapItem(streamBuffer);
+            return streamBuffer == null ? null : wrapItem(streamBuffer);
         } catch (Exception ex) {
             if (ex.getCause() instanceof CSException) {
                 return null;
