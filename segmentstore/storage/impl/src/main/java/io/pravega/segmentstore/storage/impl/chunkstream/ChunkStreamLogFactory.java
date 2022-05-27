@@ -18,7 +18,6 @@ package io.pravega.segmentstore.storage.impl.chunkstream;
 import com.emc.storageos.data.cs.atlas.AtlasRpcCommunicator;
 import com.emc.storageos.data.cs.common.CSConfiguration;
 import com.emc.storageos.data.cs.common.ChunkConfig;
-import com.emc.storageos.data.cs.common.Cluster;
 import com.emc.storageos.data.cs.common.K8sCluster;
 import com.emc.storageos.data.cs.dt.CmClientImpl;
 import com.emc.storageos.data.cs.dt.cache.ChunkCache;
@@ -73,7 +72,7 @@ public class ChunkStreamLogFactory implements DurableDataLogFactory {
     private final ScheduledExecutorService executor;
     private final AtomicReference<CmClientImpl> cmClient;
     private AtlasRpcCommunicator atlasRpcClient;
-    private Cluster cluster;
+    private K8sCluster cluster;
     private HDDRpcClientServer diskRpcClientServer;
     private HDDClient diskClient;
     private DTRpcServer rpcDTServer;
@@ -117,11 +116,11 @@ public class ChunkStreamLogFactory implements DurableDataLogFactory {
         if (this.rpcDTServer != null) {
             this.rpcDTServer.shutdown();
         }
-        if (this.chunkCache != null) {
-            this.chunkCache.shutdown();
-        }
         if (this.cluster != null) {
             this.cluster.shutdown();
+        }
+        if (this.chunkCache != null) {
+            this.chunkCache.shutdown();
         }
         this.csConfig.shutdown();
         this.chunkConfig.shutdown();
@@ -143,16 +142,17 @@ public class ChunkStreamLogFactory implements DurableDataLogFactory {
     public void initialize() throws DurableDataLogException {
         Preconditions.checkState(this.cmClient.get() == null, "ChunkStreamLogFactory is already initialized.");
         try {
-            this.atlasRpcClient = new AtlasRpcCommunicator(ATLAS_PORT, ATLAS_KEEP_ALIVE_TIME_SECONDS, ATLAS_KEEP_ALIVE_TIMEOUT_SECONDS, ATLAS_SERVICE_HOSTNAME);
-            this.atlasRpcClient.startConfigWatch();
-            this.cluster = new K8sCluster(this.atlasRpcClient, MY_OBJECTSTORE_NAME, MY_POD_IP);
-            this.cluster.init();
-            HDDRpcConfiguration hddRpcConfig = new HDDRpcConfiguration();
-            this.diskRpcClientServer = new HDDRpcClientServer(hddRpcConfig);
-            this.diskClient = new HDDClient(diskRpcClientServer, csConfig, cluster);
             DTRpcConfiguration dtRpcConfiguration = new DTRpcConfiguration();
             this.rpcDTServer = new DTRpcServer(dtRpcConfiguration);
             this.rpcDTServer.start();
+            this.atlasRpcClient = new AtlasRpcCommunicator(ATLAS_PORT, ATLAS_KEEP_ALIVE_TIME_SECONDS, ATLAS_KEEP_ALIVE_TIMEOUT_SECONDS, ATLAS_SERVICE_HOSTNAME);
+            this.atlasRpcClient.startConfigWatch();
+            this.cluster = new K8sCluster(this.atlasRpcClient, MY_OBJECTSTORE_NAME, MY_POD_IP);
+            Thread.sleep(120000);
+            this.cluster.init();
+            HDDRpcConfiguration hddRpcConfig = new HDDRpcConfiguration();
+            this.diskRpcClientServer = new HDDRpcClientServer(hddRpcConfig);
+            this.diskClient = new HDDClient(this.diskRpcClientServer, this.csConfig, this.cluster);
             this.chunkCache = new ChunkHashMapCache();
             this.cmClient.set(startCmClient());
         } catch (IllegalArgumentException | NullPointerException ex) {
