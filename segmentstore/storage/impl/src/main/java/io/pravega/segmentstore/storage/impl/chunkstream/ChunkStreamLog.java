@@ -100,7 +100,7 @@ public class ChunkStreamLog implements DurableDataLog {
      */
     ChunkStreamLog(int containerId, CuratorFramework zkClient, CmClient cmClient, ChunkConfig chunkConfig, ChunkStreamConfig config, ScheduledExecutorService executorService) {
         Preconditions.checkArgument(containerId >= 0, "containerId must be a non-negative integer.");
-        this.logId = String.valueOf(containerId);
+        this.logId = containerId + "-stream";
         this.zkClient = Preconditions.checkNotNull(zkClient, "zkClient");
         this.cmClient = Preconditions.checkNotNull(cmClient, "cmClient");
         this.chunkConfig = Preconditions.checkNotNull(chunkConfig, "chunkConfig");
