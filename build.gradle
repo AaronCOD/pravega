@@ -469,11 +469,11 @@ project('segmentstore:storage:impl') {
         compile group: 'org.apache.bookkeeper', name: 'bookkeeper-server', version: bookKeeperVersion, withoutLogger
 
         // chunk server stream
-        implementation group: 'com.dell.obs', name: 'cs-proto', version: '1.0.0-270.fc3e0f9'
-        implementation group: 'com.dell.obs', name: 'cs-ni', version: '1.0.0-270.fc3e0f9'
-        implementation group: 'com.dell.obs', name: 'cs-core', version: '1.0.0-270.fc3e0f9'
+        implementation group: 'com.dell.obs', name: 'cs-proto', version: '1.0.0-273.0945151'
+        implementation group: 'com.dell.obs', name: 'cs-ni', version: '1.0.0-273.0945151'
+        implementation group: 'com.dell.obs', name: 'cs-core', version: '1.0.0-273.0945151'
         // include it if you don not want a real obs deployment, use mock service to create chunk and write to disk
-        implementation group: 'com.dell.obs', name: 'cs-mock', version: '1.0.0-270.fc3e0f9'
+        implementation group: 'com.dell.obs', name: 'cs-mock', version: '1.0.0-273.0945151'
 
         testCompile project(':test:testcommon')
         testCompile project(path:':segmentstore:storage', configuration:'testRuntime')
@@ -590,7 +590,7 @@ project('segmentstore:server:host') {
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
 
         // chunk server stream
-        implementation group: 'com.dell.obs', name: 'cs-ni', version: '1.0.0-270.fc3e0f9'
+        implementation group: 'com.dell.obs', name: 'cs-ni', version: '1.0.0-273.0945151'
 
         testCompile project(':test:testcommon')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
