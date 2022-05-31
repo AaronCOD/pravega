@@ -20,7 +20,7 @@ from time import sleep
 import os
 import socket
 
-endpoints = os.environ["WAIT_FOR"].split(",")
+endpoints = []
 size = 1024
 
 for endpoint in endpoints:
