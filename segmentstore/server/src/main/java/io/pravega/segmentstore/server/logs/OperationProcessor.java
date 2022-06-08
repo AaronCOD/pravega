@@ -34,6 +34,7 @@ import io.pravega.segmentstore.server.logs.operations.CompletableOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationPriority;
 import io.pravega.segmentstore.server.logs.operations.OperationSerializer;
+import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.cache.CacheFullException;
@@ -419,6 +420,9 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
             // Entry is ready to be serialized; assign a sequence number.
             entry.setSequenceNumber(this.metadataUpdater.nextOperationSequenceNumber());
+            if (entry instanceof StreamSegmentAppendOperation) {
+                log.error("{}: test::mxx append logItem: {}, {}", this.traceObjectId, entry.getSequenceNumber(), ((StreamSegmentAppendOperation) entry).getData().getCopy());
+            }
             this.dataFrameBuilder.append(entry);
             this.metadataUpdater.acceptOperation(entry);
         }

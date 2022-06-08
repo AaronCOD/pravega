@@ -28,6 +28,7 @@ import io.pravega.segmentstore.server.logs.operations.CheckpointOperationBase;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationSerializer;
+import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.LogAddress;
 import lombok.extern.slf4j.Slf4j;
@@ -154,6 +155,9 @@ class RecoveryProcessor {
                     break;
                 } else if (dataFrameRecord.isLastFrameEntry()) {
                     skippedDataFramesCount++;
+                }
+                if (dataFrameRecord.getItem() instanceof StreamSegmentAppendOperation) {
+                    log.error("{}: test::mxx recover logItem: {}, {}", this.traceObjectId, dataFrameRecord.getItem().getSequenceNumber(), ((StreamSegmentAppendOperation) dataFrameRecord.getItem()).getData().getCopy());
                 }
 
                 skippedOperationCount++;
