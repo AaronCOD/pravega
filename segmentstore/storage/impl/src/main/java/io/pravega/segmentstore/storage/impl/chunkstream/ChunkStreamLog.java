@@ -170,7 +170,6 @@ public class ChunkStreamLog implements DurableDataLog {
             }
 
             // Open the chunk stream
-            ChunkStreams.delete(this.logId, this.cmClient);
             ChunkStreamWriter streamWriter = new ChunkStreamWriter(cmClient, this.chunkConfig, executorService);
             ChunkStreams.open(this.logId, true, streamWriter);
             log.info("{}: Opened Stream {}.", this.traceObjectId, streamWriter.streamId());
