@@ -242,6 +242,13 @@ public class SegmentStoreMetricsTests {
         AssertExtensions.assertEventuallyEquals(true, () -> MetricRegistryUtils.getGauge(MetricsNames.TABLE_SEGMENT_USED_CREDITS, TAG_SEGMENT, segmentName).value() == 100, 2000);
     }
 
+    @Test
+    public void testTableSegmentCreditsMetrics() throws Exception {
+        String segmentName = "_system/test/segment";
+        SegmentStoreMetrics.tableSegmentUsedCredits(segmentName, 100);
+        AssertExtensions.assertEventuallyEquals(true, () -> MetricRegistryUtils.getGauge(MetricsNames.TABLE_SEGMENT_USED_CREDITS, TAG_SEGMENT, segmentName).value() == 100, 2000);
+    }
+
     private static class TestCompletableOperation extends CompletableOperation {
         private final ManualTimer timer;
 
